@@ -32,7 +32,7 @@ wss.on('connection', (socket) => {
   console.log('New WebSocket connected');
 
   socket.on('message', async (data) => {
-    console.log("Raw message received:", data.toString());
+    console.log('Raw message received:', data.toString());
 
     const msg = JSON.parse(data);
 
@@ -78,6 +78,24 @@ wss.on('connection', (socket) => {
       console.log(`User disconnected: ${socket.userId}`);
     }
   });
+});
+
+app.get('/messages', async (req, res) => {
+  try {
+    const { user1, user2 } = req.query;
+
+    const messages = await Message.find({
+      $or: [
+        { from: user1, to: user2 },
+        { from: user2, to: user1 },
+      ],
+    }).sort({ createdAt: 1 });
+
+    res.json(messages);
+  } catch (err) {
+    console.error('Fetch messages failed:', err);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
 });
 
 const PORT = process.env.PORT || 5000;

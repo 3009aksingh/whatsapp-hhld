@@ -1,20 +1,41 @@
 "use client";
 
 import useSocket from "@/hooks/useSocket";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import MessageBubble from "./MessageBubble";
 import MessageInput from "./MessageInput";
 
 type Message = {
+  _id?: string;
   from: string;
+  to?: string;
   text: string;
 };
 
 export default function ChatWindow() {
   const userId = "userA"; // change in second tab
+  const receiver = userId === "userA" ? "userB" : "userA";
 
   const [messages, setMessages] = useState<Message[]>([]);
 
+  // 🔹 Fetch old messages
+  useEffect(() => {
+    const fetchMessages = async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:5000/messages?user1=${userId}&user2=${receiver}`
+        );
+        const data = await res.json();
+        setMessages(data);
+      } catch (err) {
+        console.error("Failed to load messages", err);
+      }
+    };
+
+    fetchMessages();
+  }, [userId]);
+
+  // 🔹 Real-time socket
   const socketRef = useSocket(userId, (msg) => {
     if (msg.type === "message") {
       setMessages((prev) => [
@@ -29,8 +50,6 @@ export default function ChatWindow() {
 
   const sendMessage = (text: string) => {
     if (!socketRef.current) return;
-
-    const receiver = userId === "userA" ? "userB" : "userA";
 
     socketRef.current.send(
       JSON.stringify({
@@ -62,7 +81,7 @@ export default function ChatWindow() {
       <div style={{ padding: "1rem", overflowY: "auto", flex: 1 }}>
         {messages.map((msg, index) => (
           <MessageBubble
-            key={index}
+            key={msg._id || index}
             text={msg.text}
             isOwn={msg.from === userId}
           />
