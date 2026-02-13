@@ -8,15 +8,17 @@ export default function MessageBubble({ text, isOwn }: Props) {
     <div
       style={{
         textAlign: isOwn ? "right" : "left",
-        margin: "8px 0"
+        margin: "10px 0",
       }}
     >
       <span
         style={{
           display: "inline-block",
-          padding: "8px 12px",
-          borderRadius: "12px",
-          backgroundColor: isOwn ? "#DCF8C6" : "#eee"
+          padding: "10px 14px",
+          borderRadius: "8px",
+          backgroundColor: isOwn ? "#1f1f1f" : "#181818",
+          border: "1px solid #222",
+          fontSize: "14px",
         }}
       >
         {text}

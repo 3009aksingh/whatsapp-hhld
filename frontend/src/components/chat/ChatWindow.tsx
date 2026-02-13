@@ -13,7 +13,7 @@ type Message = {
 };
 
 export default function ChatWindow() {
-  const userId = "userA"; // change in second tab
+  const userId = "userA"; // temporary until login page built
   const receiver = userId === "userA" ? "userB" : "userA";
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -35,8 +35,8 @@ export default function ChatWindow() {
     fetchMessages();
   }, [userId]);
 
-  // 🔹 Real-time socket
-  const socketRef = useSocket(userId, (msg) => {
+  // 🔹 Real-time socket (NO userId passed now)
+  const socketRef = useSocket((msg) => {
     if (msg.type === "message") {
       setMessages((prev) => [
         ...prev,
@@ -54,7 +54,6 @@ export default function ChatWindow() {
     socketRef.current.send(
       JSON.stringify({
         type: "message",
-        from: userId,
         to: receiver,
         text,
       })
@@ -72,10 +71,11 @@ export default function ChatWindow() {
   return (
     <div
       style={{
-        width: "75%",
+        width: "70%",
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
+        backgroundColor: "#111",
       }}
     >
       <div style={{ padding: "1rem", overflowY: "auto", flex: 1 }}>

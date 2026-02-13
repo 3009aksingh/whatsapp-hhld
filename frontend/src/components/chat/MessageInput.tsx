@@ -16,19 +16,39 @@ export default function MessageInput({ onSend }: Props) {
 
   return (
     <div
-      style={{
-        display: "flex",
-        padding: "1rem",
-        borderTop: "1px solid #ddd"
-      }}
-    >
-      <input
-        style={{ flex: 1, padding: "8px" }}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Type a message..."
-      />
-      <button onClick={handleSend} style={{ marginLeft: "10px" }}>
+  style={{
+    display: "flex",
+    padding: "16px",
+    borderTop: "1px solid #222",
+    backgroundColor: "#0d0d0d",
+  }}
+>
+<input
+    style={{
+      flex: 1,
+      padding: "10px",
+      backgroundColor: "#111",
+      border: "1px solid #222",
+      borderRadius: "6px",
+      color: "#fff",
+      outline: "none",
+    }}
+    value={text}
+    onChange={(e) => setText(e.target.value)}
+    placeholder="Type a message..."
+  />
+       <button
+    onClick={handleSend}
+    style={{
+      marginLeft: "10px",
+      padding: "10px 16px",
+      backgroundColor: "#1a1a1a",
+      border: "1px solid #222",
+      color: "#fff",
+      borderRadius: "6px",
+      cursor: "pointer",
+    }}
+  >
         Send
       </button>
     </div>

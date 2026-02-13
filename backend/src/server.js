@@ -4,9 +4,9 @@ const http = require('http');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const WebSocket = require('ws');
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const User = require("./models/User");
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const User = require('./models/User');
 
 const Message = require('./models/Message');
 
@@ -31,56 +31,59 @@ const wss = new WebSocket.Server({ server });
 
 const users = new Map(); // userId → socket
 
-wss.on('connection', (socket) => {
-  console.log('New WebSocket connected');
+wss.on('connection', (socket, req) => {
+  try {
+    const url = new URL(req.url, 'http://localhost');
+    const token = url.searchParams.get('token');
 
-  socket.on('message', async (data) => {
-    console.log('Raw message received:', data.toString());
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.username;
 
-    const msg = JSON.parse(data);
+    users.set(userId, socket);
+    socket.userId = userId;
 
-    // Register user
-    if (msg.type === 'register') {
-      users.set(msg.userId, socket);
-      socket.userId = msg.userId;
-      console.log(`User registered: ${msg.userId}`);
-    }
+    console.log(`WebSocket connected for user: ${userId}`);
 
-    // Send message
-    if (msg.type === 'message') {
-      try {
-        // Save to DB
-        const savedMessage = await Message.create({
-          from: msg.from,
-          to: msg.to,
-          text: msg.text,
-        });
+    socket.on('message', async (data) => {
+      console.log('Raw message received:', data.toString());
 
-        console.log('Saved message:', savedMessage);
+      const msg = JSON.parse(data);
 
-        const receiverSocket = users.get(msg.to);
+      if (msg.type === 'message') {
+        try {
+          const savedMessage = await Message.create({
+            from: userId,
+            to: msg.to,
+            text: msg.text,
+          });
 
-        if (receiverSocket) {
-          receiverSocket.send(
-            JSON.stringify({
-              type: 'message',
-              from: savedMessage.from,
-              text: savedMessage.text,
-            })
-          );
+          console.log('Saved message:', savedMessage);
+
+          const receiverSocket = users.get(msg.to);
+
+          if (receiverSocket) {
+            receiverSocket.send(
+              JSON.stringify({
+                type: 'message',
+                from: savedMessage.from,
+                text: savedMessage.text,
+              })
+            );
+          }
+        } catch (err) {
+          console.error('Message save failed:', err);
         }
-      } catch (err) {
-        console.error('Message save failed:', err);
       }
-    }
-  });
+    });
 
-  socket.on('close', () => {
-    if (socket.userId) {
-      users.delete(socket.userId);
-      console.log(`User disconnected: ${socket.userId}`);
-    }
-  });
+    socket.on('close', () => {
+      users.delete(userId);
+      console.log(`User disconnected: ${userId}`);
+    });
+  } catch (err) {
+    console.log('Invalid token');
+    socket.close();
+  }
 });
 
 app.get('/messages', async (req, res) => {
@@ -101,7 +104,7 @@ app.get('/messages', async (req, res) => {
   }
 });
 
-app.post("/register", async (req, res) => {
+app.post('/register', async (req, res) => {
   try {
     const { username, password } = req.body;
 
@@ -112,42 +115,41 @@ app.post("/register", async (req, res) => {
       password: hashedPassword,
     });
 
-    res.json({ message: "User registered successfully" });
+    res.json({ message: 'User registered successfully' });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Registration failed" });
+    res.status(500).json({ error: 'Registration failed' });
   }
 });
 
-app.post("/login", async (req, res) => {
+app.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
 
     const user = await User.findOne({ username });
 
     if (!user) {
-      return res.status(400).json({ error: "User not found" });
+      return res.status(400).json({ error: 'User not found' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.status(400).json({ error: "Invalid credentials" });
+      return res.status(400).json({ error: 'Invalid credentials' });
     }
 
     const token = jwt.sign(
       { userId: user._id, username: user.username },
       process.env.JWT_SECRET,
-      { expiresIn: "1d" }
+      { expiresIn: '1d' }
     );
 
     res.json({ token });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Login failed" });
+    res.status(500).json({ error: 'Login failed' });
   }
 });
-
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
