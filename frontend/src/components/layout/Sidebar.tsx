@@ -1,11 +1,44 @@
 "use client";
 
-import { useState } from "react";
+import { useChat } from "@/context/ChatContext";
+import { useEffect, useState } from "react";
 
-const users = ["userA", "userB"];
+type User = {
+  username: string;
+};
 
 export default function Sidebar() {
-  const [selectedUser, setSelectedUser] = useState("userA");
+  const [users, setUsers] = useState<User[]>([]);
+  const { selectedUser, setSelectedUser, onlineUsers } = useChat();
+
+  const token =
+    typeof window !== "undefined"
+      ? localStorage.getItem("token")
+      : null;
+
+  const currentUser = token
+    ? JSON.parse(atob(token.split(".")[1])).username
+    : "";
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const res = await fetch("http://localhost:5000/users");
+      const data = await res.json();
+
+      const filteredUsers = data.filter(
+        (u: User) => u.username !== currentUser
+      );
+
+      setUsers(filteredUsers);
+
+      // Auto-select first user
+      if (filteredUsers.length > 0 && !selectedUser) {
+        setSelectedUser(filteredUsers[0].username);
+      }
+    };
+
+    fetchUsers();
+  }, []);
 
   return (
     <div
@@ -24,40 +57,47 @@ export default function Sidebar() {
           borderBottom: "1px solid #1f1f1f",
           fontSize: "16px",
           fontWeight: 500,
-          letterSpacing: "0.5px",
         }}
       >
         Chats
       </div>
 
-      {/* Chat List */}
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "12px",
-        }}
-      >
+      {/* User List */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "12px" }}>
         {users.map((user) => (
           <div
-            key={user}
-            onClick={() => setSelectedUser(user)}
+            key={user.username}
+            onClick={() => setSelectedUser(user.username)}
             style={{
               padding: "10px 12px",
               borderRadius: "8px",
               cursor: "pointer",
               marginBottom: "6px",
-              fontSize: "14px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
               backgroundColor:
-                selectedUser === user ? "#1a1a1a" : "transparent",
+                selectedUser === user.username
+                  ? "#1a1a1a"
+                  : "transparent",
               border:
-                selectedUser === user
+                selectedUser === user.username
                   ? "1px solid #2a2a2a"
                   : "1px solid transparent",
-              transition: "all 0.2s ease",
             }}
           >
-            {user}
+            <span>{user.username}</span>
+
+            {onlineUsers.includes(user.username) && (
+              <span
+                style={{
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  backgroundColor: "#4ade80",
+                }}
+              />
+            )}
           </div>
         ))}
       </div>

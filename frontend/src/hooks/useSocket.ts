@@ -2,7 +2,8 @@
 import { useEffect, useRef } from "react";
 
 type SocketMessage =
-  | { type: "message"; from: string; text: string };
+  | { type: "message"; from: string; text: string }
+  | { type: "online_users"; users: string[] };
 
 export default function useSocket(
   onMessage: (msg: SocketMessage) => void

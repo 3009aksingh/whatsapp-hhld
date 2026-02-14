@@ -7,6 +7,7 @@ const WebSocket = require('ws');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('./models/User');
+const onlineUsers = new Set();
 
 const Message = require('./models/Message');
 
@@ -21,6 +22,21 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB Connected'))
   .catch((err) => console.log(err));
+
+function broadcastOnlineUsers() {
+  const usersArray = Array.from(onlineUsers);
+
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(
+        JSON.stringify({
+          type: 'online_users',
+          users: usersArray,
+        })
+      );
+    }
+  });
+}
 
 // REST Test Route
 app.get('/', (req, res) => {
@@ -43,6 +59,8 @@ wss.on('connection', (socket, req) => {
     socket.userId = userId;
 
     console.log(`WebSocket connected for user: ${userId}`);
+    onlineUsers.add(userId);
+    broadcastOnlineUsers();
 
     socket.on('message', async (data) => {
       console.log('Raw message received:', data.toString());
@@ -77,6 +95,9 @@ wss.on('connection', (socket, req) => {
     });
 
     socket.on('close', () => {
+      onlineUsers.delete(userId);
+      broadcastOnlineUsers();
+
       users.delete(userId);
       console.log(`User disconnected: ${userId}`);
     });
@@ -148,6 +169,16 @@ app.post('/login', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+app.get('/users', async (req, res) => {
+  try {
+    const users = await User.find({}, { username: 1, _id: 0 });
+    res.json(users);
+  } catch (err) {
+    console.error('Failed to fetch users:', err);
+    res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
 

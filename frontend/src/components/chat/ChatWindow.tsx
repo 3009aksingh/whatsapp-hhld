@@ -1,9 +1,15 @@
 "use client";
 
+import { useChat } from "@/context/ChatContext";
 import useSocket from "@/hooks/useSocket";
-import { useEffect, useState } from "react";
+import { jwtDecode } from "jwt-decode";
+import { useEffect, useMemo, useState } from "react";
 import MessageBubble from "./MessageBubble";
 import MessageInput from "./MessageInput";
+
+type DecodedToken = {
+  username: string;
+};
 
 type Message = {
   _id?: string;
@@ -13,13 +19,36 @@ type Message = {
 };
 
 export default function ChatWindow() {
-  const userId = "userA"; // temporary until login page built
-  const receiver = userId === "userA" ? "userB" : "userA";
-
+  const { selectedUser } = useChat();
   const [messages, setMessages] = useState<Message[]>([]);
 
-  // 🔹 Fetch old messages
+  // ✅ Safely decode user from token
+  const userId = useMemo(() => {
+    if (typeof window === "undefined") return "";
+
+    const token = localStorage.getItem("token");
+    if (!token) return "";
+
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      return decoded.username;
+    } catch {
+      return "";
+    }
+  }, []);
+
+  const receiver = selectedUser;
+
+  // 🔹 Clear messages when switching chats
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMessages([]);
+  }, [receiver]);
+
+  // 🔹 Fetch messages when userId OR receiver changes
+  useEffect(() => {
+    if (!userId || !receiver) return;
+
     const fetchMessages = async () => {
       try {
         const res = await fetch(
@@ -33,9 +62,11 @@ export default function ChatWindow() {
     };
 
     fetchMessages();
-  }, [userId]);
+  }, [userId, receiver]);
 
-  // 🔹 Real-time socket (NO userId passed now)
+  // 🔹 WebSocket
+
+  const { setOnlineUsers } = useChat();
   const socketRef = useSocket((msg) => {
     if (msg.type === "message") {
       setMessages((prev) => [
@@ -46,10 +77,14 @@ export default function ChatWindow() {
         },
       ]);
     }
+  
+    if (msg.type === "online_users") {
+      setOnlineUsers(msg.users);
+    }
   });
 
   const sendMessage = (text: string) => {
-    if (!socketRef.current) return;
+    if (!socketRef.current || !userId || !receiver) return;
 
     socketRef.current.send(
       JSON.stringify({
@@ -68,6 +103,27 @@ export default function ChatWindow() {
     ]);
   };
 
+  // 🔹 Not logged in yet
+  if (!userId) return null;
+
+  // 🔹 No chat selected
+  if (!receiver) {
+    return (
+      <div
+        style={{
+          width: "70%",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#111",
+          color: "#666",
+        }}
+      >
+        Select a user to start chatting
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -78,6 +134,7 @@ export default function ChatWindow() {
         backgroundColor: "#111",
       }}
     >
+      {/* Messages */}
       <div style={{ padding: "1rem", overflowY: "auto", flex: 1 }}>
         {messages.map((msg, index) => (
           <MessageBubble
@@ -88,6 +145,7 @@ export default function ChatWindow() {
         ))}
       </div>
 
+      {/* Input */}
       <MessageInput onSend={sendMessage} />
     </div>
   );
