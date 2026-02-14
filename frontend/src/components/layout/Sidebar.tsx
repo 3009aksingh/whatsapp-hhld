@@ -9,7 +9,7 @@ type User = {
 
 export default function Sidebar() {
   const [users, setUsers] = useState<User[]>([]);
-  const { selectedUser, setSelectedUser, onlineUsers } = useChat();
+  const { selectedUser, setSelectedUser, onlineUsers, logout } = useChat();
 
   const token =
     typeof window !== "undefined"
@@ -52,15 +52,34 @@ export default function Sidebar() {
     >
       {/* Header */}
       <div
-        style={{
-          padding: "20px",
-          borderBottom: "1px solid #1f1f1f",
-          fontSize: "16px",
-          fontWeight: 500,
-        }}
-      >
-        Chats
-      </div>
+  style={{
+    padding: "20px",
+    borderBottom: "1px solid #1f1f1f",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  }}
+>
+  <span style={{ fontSize: "16px", fontWeight: 500 }}>
+    Chats
+  </span>
+
+  <button
+  onClick={logout}
+  style={{
+    backgroundColor: "transparent",
+    border: "1px solid #2a2a2a",
+    color: "#aaa",
+    padding: "4px 8px",
+    borderRadius: "6px",
+    cursor: "pointer",
+  }}
+>
+  Logout
+</button>
+
+</div>
+
 
       {/* User List */}
       <div style={{ flex: 1, overflowY: "auto", padding: "12px" }}>

@@ -25,6 +25,7 @@ mongoose
 
 function broadcastOnlineUsers() {
   const usersArray = Array.from(onlineUsers);
+  console.log('Online users:', usersArray);
 
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
@@ -45,7 +46,7 @@ app.get('/', (req, res) => {
 // WebSocket Server
 const wss = new WebSocket.Server({ server });
 
-const users = new Map(); // userId → socket
+const users = new Map(); // userId → Set of sockets
 
 wss.on('connection', (socket, req) => {
   try {
@@ -55,17 +56,28 @@ wss.on('connection', (socket, req) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.username;
 
-    users.set(userId, socket);
     socket.userId = userId;
 
-    console.log(`WebSocket connected for user: ${userId}`);
+    // 🟢 Initialize user socket set if not exists
+    if (!users.has(userId)) {
+      users.set(userId, new Set());
+    }
+
+    users.get(userId).add(socket);
+
     onlineUsers.add(userId);
+
+    console.log(`WebSocket connected for user: ${userId}`);
     broadcastOnlineUsers();
 
     socket.on('message', async (data) => {
-      console.log('Raw message received:', data.toString());
-
       const msg = JSON.parse(data);
+
+      // if (msg.type === 'logout') {
+      //   console.log(`User logged out: ${socket.userId}`);
+      //   socket.close();
+      //   return;
+      // }
 
       if (msg.type === 'message') {
         try {
@@ -77,16 +89,20 @@ wss.on('connection', (socket, req) => {
 
           console.log('Saved message:', savedMessage);
 
-          const receiverSocket = users.get(msg.to);
+          const receiverSockets = users.get(msg.to);
 
-          if (receiverSocket) {
-            receiverSocket.send(
-              JSON.stringify({
-                type: 'message',
-                from: savedMessage.from,
-                text: savedMessage.text,
-              })
-            );
+          if (receiverSockets) {
+            receiverSockets.forEach((clientSocket) => {
+              if (clientSocket.readyState === WebSocket.OPEN) {
+                clientSocket.send(
+                  JSON.stringify({
+                    type: 'message',
+                    from: savedMessage.from,
+                    text: savedMessage.text,
+                  })
+                );
+              }
+            });
           }
         } catch (err) {
           console.error('Message save failed:', err);
@@ -95,17 +111,27 @@ wss.on('connection', (socket, req) => {
     });
 
     socket.on('close', () => {
-      onlineUsers.delete(userId);
+      const userSockets = users.get(userId);
+    
+      if (userSockets) {
+        userSockets.delete(socket);
+    
+        if (userSockets.size === 0) {
+          users.delete(userId);
+          onlineUsers.delete(userId);
+          console.log(`User logged out / fully disconnected: ${userId}`);
+        }
+      }
+    
       broadcastOnlineUsers();
-
-      users.delete(userId);
-      console.log(`User disconnected: ${userId}`);
     });
+    
   } catch (err) {
     console.log('Invalid token');
     socket.close();
   }
 });
+
 
 app.get('/messages', async (req, res) => {
   try {
