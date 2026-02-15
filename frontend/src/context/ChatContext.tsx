@@ -1,8 +1,7 @@
 "use client";
 
 import useSocket from "@/hooks/useSocket";
-import { createContext, useContext, useEffect, useState } from "react";
-
+import { createContext, useContext, useState } from "react";
 
 type Message = {
   from: string;
@@ -10,6 +9,7 @@ type Message = {
 };
 
 type ChatContextType = {
+  currentUser: string;
   selectedUser: string;
   setSelectedUser: (user: string) => void;
   onlineUsers: string[];
@@ -19,16 +19,20 @@ type ChatContextType = {
   logout: () => void;
 };
 
-
 const ChatContext = createContext<ChatContextType | null>(null);
 
 export function ChatProvider({ children }: { children: React.ReactNode }) {
-  console.log("ChatProvider mounted");
 
-  useEffect(() => {
-    return () => console.log("ChatProvider unmounted");
-  }, []);
-  
+  // 🔥 Decode token ONCE here
+  const token =
+    typeof window !== "undefined"
+      ? localStorage.getItem("token")
+      : null;
+
+  const currentUser = token
+    ? JSON.parse(atob(token.split(".")[1])).username
+    : "";
+
   const [selectedUser, setSelectedUser] = useState("");
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -65,24 +69,23 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (socketRef.current) {
       socketRef.current.close();
     }
-  
+
     localStorage.removeItem("token");
     window.location.replace("/login");
-  };  
-  
+  };
 
   return (
     <ChatContext.Provider
-    value={{
-      selectedUser,
-      setSelectedUser,
-      onlineUsers,
-      messages,
-      setMessages,  
-      sendMessage,
-      logout,
-    }}
-    
+      value={{
+        currentUser,
+        selectedUser,
+        setSelectedUser,
+        onlineUsers,
+        messages,
+        setMessages,
+        sendMessage,
+        logout,
+      }}
     >
       {children}
     </ChatContext.Provider>

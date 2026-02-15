@@ -1,47 +1,34 @@
 "use client";
 
 import { useChat } from "@/context/ChatContext";
-import { jwtDecode } from "jwt-decode";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import MessageBubble from "./MessageBubble";
 import MessageInput from "./MessageInput";
 
-type DecodedToken = {
-  username: string;
-};
-
 export default function ChatWindow() {
-  const { selectedUser, messages, setMessages, sendMessage } = useChat();
-
-  const userId = useMemo(() => {
-    if (typeof window === "undefined") return "";
-
-    const token = localStorage.getItem("token");
-    if (!token) return "";
-
-    try {
-      const decoded = jwtDecode<DecodedToken>(token);
-      return decoded.username;
-    } catch {
-      return "";
-    }
-  }, []);
+  const {
+    currentUser,
+    selectedUser,
+    messages,
+    setMessages,
+    sendMessage,
+  } = useChat();
 
   const receiver = selectedUser;
 
   useEffect(() => {
-    if (!userId || !receiver) return;
+    if (!currentUser || !receiver) return;
 
     const fetchMessages = async () => {
       const res = await fetch(
-        `http://localhost:5000/messages?user1=${userId}&user2=${receiver}`
+        `http://localhost:5000/messages?user1=${currentUser}&user2=${receiver}`
       );
       const data = await res.json();
       setMessages(data);
     };
 
     fetchMessages();
-  }, [userId, receiver]);
+  }, [currentUser, receiver]);
 
   if (!receiver) {
     return (
@@ -75,7 +62,7 @@ export default function ChatWindow() {
           <MessageBubble
             key={index}
             text={msg.text}
-            isOwn={msg.from === userId}
+            isOwn={msg.from === currentUser}
           />
         ))}
       </div>

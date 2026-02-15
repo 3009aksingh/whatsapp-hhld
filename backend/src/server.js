@@ -7,7 +7,8 @@ const WebSocket = require('ws');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('./models/User');
-const onlineUsers = new Set();
+// const onlineUsers = new Set();
+const { createClient } = require('redis');
 
 const Message = require('./models/Message');
 
@@ -23,9 +24,23 @@ mongoose
   .then(() => console.log('MongoDB Connected'))
   .catch((err) => console.log(err));
 
-function broadcastOnlineUsers() {
-  const usersArray = Array.from(onlineUsers);
-  console.log('Online users:', usersArray);
+const redisClient = createClient({
+  url: 'redis://localhost:6379',
+});
+
+redisClient.on('error', (err) => {
+  console.error('Redis error:', err);
+});
+
+(async () => {
+  await redisClient.connect();
+  console.log('Redis Connected');
+})();
+
+async function broadcastOnlineUsers() {
+  const usersArray = await redisClient.sMembers('online_users');
+
+  console.log('Online users (Redis):', usersArray);
 
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
@@ -48,7 +63,7 @@ const wss = new WebSocket.Server({ server });
 
 const users = new Map(); // userId → Set of sockets
 
-wss.on('connection', (socket, req) => {
+wss.on('connection', async (socket, req) => {
   try {
     const url = new URL(req.url, 'http://localhost');
     const token = url.searchParams.get('token');
@@ -65,7 +80,7 @@ wss.on('connection', (socket, req) => {
 
     users.get(userId).add(socket);
 
-    onlineUsers.add(userId);
+    await redisClient.sAdd('online_users', userId);
 
     console.log(`WebSocket connected for user: ${userId}`);
     broadcastOnlineUsers();
@@ -89,10 +104,28 @@ wss.on('connection', (socket, req) => {
 
           console.log('Saved message:', savedMessage);
 
+          // Send to receiver
           const receiverSockets = users.get(msg.to);
 
           if (receiverSockets) {
             receiverSockets.forEach((clientSocket) => {
+              if (clientSocket.readyState === WebSocket.OPEN) {
+                clientSocket.send(
+                  JSON.stringify({
+                    type: 'message',
+                    from: savedMessage.from,
+                    text: savedMessage.text,
+                  })
+                );
+              }
+            });
+          }
+
+          // Also send back to sender (echo)
+          const senderSockets = users.get(userId);
+
+          if (senderSockets) {
+            senderSockets.forEach((clientSocket) => {
               if (clientSocket.readyState === WebSocket.OPEN) {
                 clientSocket.send(
                   JSON.stringify({
@@ -110,28 +143,27 @@ wss.on('connection', (socket, req) => {
       }
     });
 
-    socket.on('close', () => {
+    socket.on('close', async () => {
       const userSockets = users.get(userId);
-    
+
       if (userSockets) {
         userSockets.delete(socket);
-    
+
         if (userSockets.size === 0) {
           users.delete(userId);
-          onlineUsers.delete(userId);
+          await redisClient.sRem('online_users', userId);
+
           console.log(`User logged out / fully disconnected: ${userId}`);
         }
       }
-    
+
       broadcastOnlineUsers();
     });
-    
   } catch (err) {
     console.log('Invalid token');
     socket.close();
   }
 });
-
 
 app.get('/messages', async (req, res) => {
   try {
