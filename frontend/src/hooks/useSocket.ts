@@ -2,9 +2,21 @@
 
 import { useEffect, useRef } from "react";
 
-type SocketMessage =
-  | { type: "message"; from: string; text: string }
-  | { type: "online_users"; users: string[] };
+/* =========================
+   Define Proper Socket Types
+========================= */
+
+export type SocketMessage =
+  | {
+      type: "message";
+      id: string;       // ✅ REQUIRED now
+      from: string;
+      text: string;
+    }
+  | {
+      type: "online_users";
+      users: string[];
+    };
 
 export default function useSocket(
   onMessage: (msg: SocketMessage) => void
@@ -12,34 +24,56 @@ export default function useSocket(
   const socketRef = useRef<WebSocket | null>(null);
   const messageHandlerRef = useRef(onMessage);
 
+  /* =========================
+     Keep Latest Handler
+  ========================= */
+
   useEffect(() => {
     messageHandlerRef.current = onMessage;
   }, [onMessage]);
+
+  /* =========================
+     WebSocket Lifecycle
+  ========================= */
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const token = localStorage.getItem("token");
 
-    // 🔴 DO NOT CONNECT if no token
     if (!token) {
       console.log("WebSocket not started — no token");
       return;
     }
 
+    const WS_PORT =
+      localStorage.getItem("ws_port") || "5000";
+
     const socket = new WebSocket(
-      `ws://localhost:5000?token=${token}`
+      `ws://localhost:${WS_PORT}?token=${token}`
     );
 
     socketRef.current = socket;
 
     socket.onopen = () => {
-      console.log("WebSocket connected");
+      console.log(
+        `WebSocket connected to ${WS_PORT}`
+      );
     };
 
     socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      messageHandlerRef.current(data);
+      try {
+        const data: SocketMessage = JSON.parse(
+          event.data
+        );
+
+        messageHandlerRef.current(data);
+      } catch (err) {
+        console.error(
+          "Invalid WebSocket message",
+          err
+        );
+      }
     };
 
     socket.onclose = () => {
@@ -51,9 +85,16 @@ export default function useSocket(
     };
 
     return () => {
-      socket.close();
+      if (
+        socket.readyState === WebSocket.OPEN
+      ) {
+        console.log(
+          "Cleaning up socket..."
+        );
+        socket.close();
+      }
     };
-  }, []); // only once
+  }, []);
 
   return socketRef;
 }

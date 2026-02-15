@@ -1,9 +1,10 @@
 "use client";
 
 import useSocket from "@/hooks/useSocket";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 
 type Message = {
+  id: string;        // ✅ REQUIRED
   from: string;
   text: string;
 };
@@ -21,21 +22,45 @@ type ChatContextType = {
 
 const ChatContext = createContext<ChatContextType | null>(null);
 
+type IncomingSocketMessage =
+  | {
+      type: "online_users";
+      users: string[];
+    }
+  | {
+      type: "message";
+      id: string;       // ✅ now TS knows id exists
+      from: string;
+      text: string;
+    };
+
+
 export function ChatProvider({ children }: { children: React.ReactNode }) {
 
-  // 🔥 Decode token ONCE here
-  const token =
-    typeof window !== "undefined"
-      ? localStorage.getItem("token")
-      : null;
+  /* =========================
+     Decode token safely
+  ========================= */
 
-  const currentUser = token
-    ? JSON.parse(atob(token.split(".")[1])).username
-    : "";
+  const currentUser = useMemo(() => {
+    if (typeof window === "undefined") return "";
+
+    const token = localStorage.getItem("token");
+    if (!token) return "";
+
+    try {
+      return JSON.parse(atob(token.split(".")[1])).username;
+    } catch {
+      return "";
+    }
+  }, []);
 
   const [selectedUser, setSelectedUser] = useState("");
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+
+  /* =========================
+     WebSocket Handler
+  ========================= */
 
   const socketRef = useSocket((msg) => {
     if (msg.type === "online_users") {
@@ -43,15 +68,30 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (msg.type === "message") {
-      setMessages((prev) => [
-        ...prev,
-        {
-          from: msg.from,
-          text: msg.text,
-        },
-      ]);
+
+      // ✅ DEDUPLICATION BY MESSAGE ID
+      setMessages((prev) => {
+
+        // If message already exists → ignore
+          if (prev.some((m) => m.id === msg.id)) {
+            return prev;
+          }
+
+          return [
+            ...prev,
+            {
+              id: msg.id,
+              from: msg.from,
+              text: msg.text,
+            },
+          ];
+      });
     }
   });
+
+  /* =========================
+     Send Message
+  ========================= */
 
   const sendMessage = (to: string, text: string) => {
     if (!socketRef.current) return;
@@ -64,6 +104,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       })
     );
   };
+
+  /* =========================
+     Logout
+  ========================= */
 
   const logout = () => {
     if (socketRef.current) {
