@@ -50,7 +50,7 @@ export default function useSocket(
       localStorage.getItem("ws_port") || "5000";
 
     const socket = new WebSocket(
-      `ws://localhost:${WS_PORT}?token=${token}`
+       `${process.env.NEXT_PUBLIC_WS_URL}?token=${token}`
     );
 
     socketRef.current = socket;

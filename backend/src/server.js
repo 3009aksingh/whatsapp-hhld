@@ -16,7 +16,12 @@ const User = require('./models/User');
 const Message = require('./models/Message');
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL,
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 const server = http.createServer(app);
@@ -34,11 +39,11 @@ mongoose
 ========================= */
 
 const redisClient = createClient({
-  url: 'redis://localhost:6379',
+  url: process.env.REDIS_URL,
 });
 
 const redisSubscriber = createClient({
-  url: 'redis://localhost:6379',
+  url: process.env.REDIS_URL,
 });
 
 redisClient.on('error', (err) => console.error('Redis error:', err));
