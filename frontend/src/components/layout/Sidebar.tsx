@@ -22,7 +22,7 @@ export default function Sidebar() {
 
   useEffect(() => {
     const fetchUsers = async () => {
-      const res = await fetch("http://localhost:5000/users");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users`);
       const data = await res.json();
 
       const filteredUsers = data.filter(

@@ -21,14 +21,14 @@ export default function ChatWindow() {
 
     const fetchMessages = async () => {
       const res = await fetch(
-        `http://localhost:5000/messages?user1=${currentUser}&user2=${receiver}`
+        `${process.env.NEXT_PUBLIC_API_URL}/messages?user1=${currentUser}&user2=${receiver}`
       );
       const data = await res.json();
       setMessages(data);
     };
 
     fetchMessages();
-  }, [currentUser, receiver]);
+  }, [currentUser, receiver, setMessages]);
 
   if (!receiver) {
     return (
