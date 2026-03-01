@@ -3,13 +3,13 @@
 import { useEffect, useRef } from "react";
 
 /* =========================
-   Define Proper Socket Types
+   Socket Message Types
 ========================= */
 
 export type SocketMessage =
   | {
       type: "message";
-      id: string;       // ✅ REQUIRED now
+      id: string;
       from: string;
       text: string;
     }
@@ -18,79 +18,64 @@ export type SocketMessage =
       users: string[];
     };
 
+/* =========================
+   useSocket Hook
+========================= */
+
 export default function useSocket(
   onMessage: (msg: SocketMessage) => void
 ) {
   const socketRef = useRef<WebSocket | null>(null);
   const messageHandlerRef = useRef(onMessage);
 
-  /* =========================
-     Keep Latest Handler
-  ========================= */
-
+  /* Keep latest handler */
   useEffect(() => {
     messageHandlerRef.current = onMessage;
   }, [onMessage]);
 
-  /* =========================
-     WebSocket Lifecycle
-  ========================= */
-
+  /* WebSocket Lifecycle */
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const token = localStorage.getItem("token");
-
     if (!token) {
       console.log("WebSocket not started — no token");
       return;
     }
 
-    const WS_PORT =
-      localStorage.getItem("ws_port") || "5000";
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL;
 
-    const socket = new WebSocket(
-       `${process.env.NEXT_PUBLIC_WS_URL}?token=${token}`
-    );
+    if (!wsUrl) {
+      console.error("NEXT_PUBLIC_WS_URL is not defined");
+      return;
+    }
 
+    const socket = new WebSocket(`${wsUrl}?token=${token}`);
     socketRef.current = socket;
 
     socket.onopen = () => {
-      console.log(
-        `WebSocket connected to ${WS_PORT}`
-      );
+      console.log("✅ WebSocket connected");
     };
 
     socket.onmessage = (event) => {
       try {
-        const data: SocketMessage = JSON.parse(
-          event.data
-        );
-
+        const data: SocketMessage = JSON.parse(event.data);
         messageHandlerRef.current(data);
       } catch (err) {
-        console.error(
-          "Invalid WebSocket message",
-          err
-        );
+        console.error("Invalid WebSocket message:", err);
       }
     };
 
-    socket.onclose = () => {
-      console.log("WebSocket disconnected");
+    socket.onerror = (err) => {
+      console.error("WebSocket error:", err);
     };
 
-    socket.onerror = (err) => {
-      console.log("WebSocket error:", err);
+    socket.onclose = () => {
+      console.log("❌ WebSocket disconnected");
     };
 
     return () => {
-      if (
-        socket.readyState === WebSocket.OPEN
-      ) {
-        console.log(
-          "Cleaning up socket..."
-        );
+      if (socket.readyState === WebSocket.OPEN) {
         socket.close();
       }
     };
